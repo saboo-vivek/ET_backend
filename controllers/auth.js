@@ -44,7 +44,6 @@ exports.postSignup = async (req, res) => {
 };
 
 
-
 exports.postLogin = async (req, res, next) => {
    try {
       const { email, password } = req.body;
@@ -71,11 +70,18 @@ exports.postLogin = async (req, res, next) => {
 
          if (response) {
             // Passwords match, generate token
+            const tokenPayload = {
+               _id: user._id,
+               ispremiumuser: user.ispremiumuser
+            };
+            
+            // Only add premiumExpiry if user is premium
+            if (user.ispremiumuser) {
+               tokenPayload.premiumExpiry = user.premiumExpiry || Date.now() + 2 * 24 * 60 * 60 * 1000;
+            }
+
             const token = jwt.sign(
-               {
-                  _id: user._id,
-                  ispremiumuser: user.ispremiumuser,
-               },
+               tokenPayload,
                process.env.TOKEN_KEY
             );
 
@@ -85,7 +91,7 @@ exports.postLogin = async (req, res, next) => {
             });
          } else {
             // Passwords don't match
-            return res.status(401).json({ error: "Invalid credentials" });
+            return res.status(401).json({ error: "Invalid credentials, Please try again!" });
          }
       });
    } catch (err) {
@@ -94,8 +100,3 @@ exports.postLogin = async (req, res, next) => {
       res.status(500).json({ error: "Internal server error" });
    }
 };
-
-
-
-
-

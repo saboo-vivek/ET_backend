@@ -136,11 +136,19 @@ const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
 const CASHFREE_ENV = process.env.CASHFREE_ENV || "TEST";
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://localhost:3000";
 
-const generateToken = (userId, ispremiumuser) => {
-  return jwt.sign({ _id: userId, ispremiumuser }, process.env.TOKEN_KEY, {
+
+const generateToken = (userId, ispremiumuser, premiumExpiry = null) => {
+  const payload = {
+    _id: userId,
+    ispremiumuser,
+    ...(ispremiumuser && { premiumExpiry: premiumExpiry?.getTime() }) // Only add if premium
+  };
+  
+  return jwt.sign(payload, process.env.TOKEN_KEY, {
     expiresIn: "30d",
   });
 };
+
 const getCashfreeBaseUrl = () => {
   return "https://sandbox.cashfree.com";
 };
@@ -242,7 +250,8 @@ exports.updatetransactionstatus = async (req, res) => {
         true,
         successfulPayment.cf_payment_id
       );
-      const token = generateToken(userId, true);
+      const premiumExpiry = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+      const token = generateToken(userId, true,premiumExpiry);
       return res.status(200).json({ success: true, token });
     }
 
@@ -316,8 +325,18 @@ const updateTransactionStatus = async (orderId, userId, isSuccess, paymentId = n
     updates.paymentId = paymentId;
   }
 
+  // Calculate expiry date 2 days from now for premium users
+  const premiumExpiry = isSuccess ? new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) : null;
+
   await Promise.all([
     Order.updateOne({ orderId }, updates),
-    User.updateOne({ _id: userId }, { ispremiumuser: isSuccess }),
+    User.updateOne(
+      { _id: userId }, 
+      { 
+        ispremiumuser: isSuccess,
+        premiumExpiry: premiumExpiry  // Add expiry date
+      }
+    ),
   ]);
 };
+
