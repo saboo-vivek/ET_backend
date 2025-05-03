@@ -17,18 +17,28 @@ exports.authenticate = async (req, res, next) => {
         }
 
         // Add premium expiry check (new code)
-        if (user.ispremiumuser && user.premiumExpiry && user.premiumExpiry < new Date()) {
-            user.ispremiumuser = false;
-            await user.save();
+        const isAdmin = user.email === 'admin@gmail.com'; // Add your admin check logic
+        
+        if (user.ispremiumuser) {
+            // Auto-set 10-min expiry for admin if missing
+            if (isAdmin && !user.premiumExpiry) {
+                user.premiumExpiry = new Date(Date.now() + 10*60*1000);
+                await user.save();
+            }
             
-            // Generate new token with updated premium status
-            const newToken = jwt.sign(
-                { _id: user._id, ispremiumuser: false },
-                process.env.TOKEN_KEY,
-                { expiresIn: "30d" }
-            );
-            res.setHeader('Authorization', newToken);
+            // Check expiry
+            if (user.premiumExpiry < new Date()) {
+                user.ispremiumuser = false;
+                await user.save();
+                const newToken = jwt.sign(
+                    { _id: user._id, ispremiumuser: false },
+                    process.env.TOKEN_KEY,
+                    { expiresIn: "10d" }
+                );
+                res.setHeader('Authorization', newToken);
+            }
         }
+        // ========== NEW CODE END ========== //
 
         req.user = user;
         next();
